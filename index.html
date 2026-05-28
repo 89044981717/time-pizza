@@ -255,304 +255,176 @@
     </footer>
 
     <script>
-        // ---------- Работа с пользователями (localStorage) ----------
-        // Структура: users = { "логин": { password, balance, regDate, lastAccrual, orders, accrualHistory } }
-        
-        function getUsers() {
-            let users = localStorage.getItem('timepizza_users');
-            if (!users) {
-                // Начальная пустая база
-                return {};
-            }
-            return JSON.parse(users);
-        }
-        
-        function saveUsers(users) {
-            localStorage.setItem('timepizza_users', JSON.stringify(users));
-            updateTotalUsersCount();
-        }
-        
-        function updateTotalUsersCount() {
-            const users = getUsers();
-            const count = Object.keys(users).length;
-            document.getElementById('totalUsers').textContent = count;
-        }
-        
-        // Текущий залогиненный пользователь (храним логин)
-        let currentUser = null;
-        
-        function saveCurrentUser(login) {
-            if (login) {
-                localStorage.setItem('timepizza_current', login);
-            } else {
-                localStorage.removeItem('timepizza_current');
-            }
-            currentUser = login;
-        }
-        
-        function loadCurrentUserFromStorage() {
-            const saved = localStorage.getItem('timepizza_current');
-            if (saved && userExists(saved)) {
-                currentUser = saved;
-                return true;
-            }
-            return false;
-        }
-        
-        function userExists(login) {
-            const users = getUsers();
-            return !!users[login];
-        }
-        
-        function getUserData(login) {
-            const users = getUsers();
-            return users[login] ? { ...users[login] } : null;
-        }
-        
-        function setUserData(login, data) {
-            const users = getUsers();
-            users[login] = data;
-            saveUsers(users);
-        }
-        
-        // Автоматическое начисление минут (для конкретного пользователя)
-        function autoAccrueForUser(login, userData) {
-            const lastAccrual = userData.lastAccrual;
-            const regDate = userData.regDate;
-            if (!lastAccrual || !regDate) return userData;
-            
-            const today = new Date().toISOString().split('T')[0];
-            const lastDate = new Date(lastAccrual);
-            const currentDate = new Date(today);
-            const diffDays = Math.floor((currentDate - lastDate) / (1000 * 60 * 60 * 24));
-            
-            if (diffDays > 0) {
-                userData.balance += diffDays;
-                userData.lastAccrual = today;
-                // Записываем в историю начислений
-                if (!userData.accrualHistory) userData.accrualHistory = [];
-                userData.accrualHistory.push({
-                    date: today,
-                    minutes: diffDays,
-                    reason: `Автоматическое начисление за ${diffDays} дн.`
-                });
-            }
-            return userData;
-        }
-        
-        // Обновить UI кошелька на основе currentUser
-        function updateWalletUI() {
-            if (!currentUser) return;
-            let userData = getUserData(currentUser);
-            if (!userData) return;
-            
-            // Сначала начисляем минуты
-            userData = autoAccrueForUser(currentUser, userData);
-            setUserData(currentUser, userData);
-            
-            // Отображаем
-            document.getElementById('balance').textContent = userData.balance;
-            document.getElementById('regDate').textContent = userData.regDate || '—';
-            
-            // Рассчитываем начисленные минуты с момента регистрации (просто для справки)
-            const reg = new Date(userData.regDate);
-            const now = new Date();
-            const daysSinceReg = Math.floor((now - reg) / (1000 * 60 * 60 * 24));
-            const totalAccrued = Math.max(0, daysSinceReg) + (userData.bonusGiven ? 5 : 0); // бонус при регистрации
-            document.getElementById('accruedMinutes').textContent = totalAccrued;
-            
-            // Время до следующего начисления
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(0, 0, 0, 0);
-            const nowMs = new Date();
-            const hoursUntil = Math.floor((tomorrow - nowMs) / (1000 * 60 * 60));
-            const minutesUntil = Math.floor((tomorrow - nowMs) / (1000 * 60)) % 60;
-            document.getElementById('nextAccrual').textContent = `${hoursUntil} ч ${minutesUntil} мин`;
-        }
-        
-        function refreshBalance() {
-            if (!currentUser) return;
-            updateWalletUI();
-            alert('✅ Баланс обновлён!');
-        }
-        
-        function orderPizza(name, price) {
-            if (!currentUser) {
-                alert('⚠️ Сначала войдите в кошелёк!');
-                return;
-            }
-            let userData = getUserData(currentUser);
-            if (!userData) return;
-            
-            // Перед заказом обновляем начисления
-            userData = autoAccrueForUser(currentUser, userData);
-            let balance = userData.balance;
-            
-            if (balance >= price) {
-                if (confirm(`Заказать "${name}" за ${price} минут?\nБаланс: ${balance} LM`)) {
-                    balance -= price;
-                    userData.balance = balance;
-                    if (!userData.orders) userData.orders = [];
-                    userData.orders.push({
-                        date: new Date().toISOString(),
-                        item: name,
-                        price: price,
-                        balanceAfter: balance
-                    });
-                    setUserData(currentUser, userData);
-                    updateWalletUI();
-                    alert(`✅ Заказ "${name}" принят!\nОстаток: ${balance} LM`);
-                }
-            } else {
-                alert(`😔 Не хватает ${price - balance} LM. Завтра появится +1 минута.`);
-            }
-        }
-        
-        function viewHistory() {
-            if (!currentUser) return;
-            const userData = getUserData(currentUser);
-            if (!userData) return;
-            
-            const history = userData.accrualHistory || [];
-            const orders = userData.orders || [];
-            let msg = '📊 История операций:\n\nНачисления:\n';
-            if (history.length === 0) msg += '  (нет)\n';
-            else history.forEach(h => msg += `  ${h.date}: +${h.minutes} LM (${h.reason})\n`);
-            
-            msg += '\nЗаказы:\n';
-            if (orders.length === 0) msg += '  (нет)\n';
-            else orders.forEach(o => msg += `  ${o.date.split('T')[0]}: ${o.item} -${o.price} LM\n`);
-            
-            alert(msg);
-        }
-        
-        function logout() {
-            saveCurrentUser(null);
-            currentUser = null;
-            document.getElementById('walletBlock').style.display = 'none';
-            document.getElementById('loginBlock').style.display = 'block';
-        }
-        
-        // Регистрация нового пользователя
-        function registerUser(login, password) {
-            login = login.trim();
-            if (!login || !password) {
-                alert('Введите логин и пароль');
-                return false;
-            }
-            const users = getUsers();
-            if (users[login]) {
-                alert('❌ Пользователь с таким логином уже существует. Попробуйте войти.');
-                return false;
-            }
-            const today = new Date().toISOString().split('T')[0];
-            const newUser = {
-                password: password,
-                balance: 5,          // бонус за регистрацию
-                regDate: today,
-                lastAccrual: today,
-                bonusGiven: true,
-                orders: [],
-                accrualHistory: [{ date: today, minutes: 5, reason: 'Бонус за регистрацию' }]
-            };
-            users[login] = newUser;
-            saveUsers(users);
-            alert(`✅ Регистрация успешна! Начислено 5 минут.\nТеперь вы можете войти.`);
-            return true;
-        }
-        
-        function loginUser(login, password) {
-            login = login.trim();
-            if (!login || !password) {
-                alert('Введите логин и пароль');
-                return false;
-            }
-            const users = getUsers();
-            const user = users[login];
-            if (!user || user.password !== password) {
-                // Неверная пара – спрашиваем, зарегистрироваться ли
-                const answer = confirm(`Пользователь "${login}" не найден или пароль неверен.\nЗарегистрировать нового пользователя с логином "${login}"?`);
-                if (answer) {
-                    registerUser(login, password);
-                }
-                return false;
-            }
-            // Успешный вход
-            saveCurrentUser(login);
-            currentUser = login;
-            document.getElementById('loginBlock').style.display = 'none';
-            document.getElementById('walletBlock').style.display = 'block';
-            updateWalletUI();
-            return true;
-        }
-        
-        // Инициализация интерфейса и обработчиков
-        function initAuth() {
-            updateTotalUsersCount();
-            // Проверяем, был ли уже залогинен пользователь (при обновлении страницы)
-            if (loadCurrentUserFromStorage()) {
-                document.getElementById('loginBlock').style.display = 'none';
-                document.getElementById('walletBlock').style.display = 'block';
-                updateWalletUI();
-            } else {
-                document.getElementById('loginBlock').style.display = 'block';
-                document.getElementById('walletBlock').style.display = 'none';
-            }
-            
-            // Кнопки логина/регистрации
-            document.getElementById('loginBtn').onclick = () => {
-                const login = document.getElementById('loginInput').value;
-                const pass = document.getElementById('passwordInput').value;
-                loginUser(login, pass);
-            };
-            document.getElementById('registerBtn').onclick = () => {
-                const login = document.getElementById('loginInput').value;
-                const pass = document.getElementById('passwordInput').value;
-                if (registerUser(login, pass)) {
-                    // после регистрации можно сразу войти
-                    loginUser(login, pass);
-                }
-            };
-            
-            // Кнопки внутри кошелька
-            document.getElementById('refreshBalanceBtn').onclick = refreshBalance;
-            document.getElementById('historyBtn').onclick = viewHistory;
-            document.getElementById('logoutBtn').onclick = logout;
-        }
-        
-        // Аккордеоны для меню и FAQ
-        function initAccordions() {
-            const menuItems = document.querySelectorAll('.menu-item');
-            menuItems.forEach(item => {
-                const header = item.querySelector('.menu-header');
-                header.addEventListener('click', () => {
-                    const isActive = item.classList.contains('active');
-                    menuItems.forEach(other => {
-                        if (other !== item && other.classList.contains('active')) other.classList.remove('active');
-                    });
-                    if (!isActive) item.classList.add('active');
-                    else item.classList.remove('active');
-                });
-            });
-            const faqItems = document.querySelectorAll('.faq-item');
-            faqItems.forEach(item => {
-                const question = item.querySelector('.faq-question');
-                question.addEventListener('click', () => {
-                    const isActive = item.classList.contains('active');
-                    faqItems.forEach(other => {
-                        if (other !== item && other.classList.contains('active')) other.classList.remove('active');
-                    });
-                    if (!isActive) item.classList.add('active');
-                    else item.classList.remove('active');
-                });
-            });
-        }
-        
-        window.onload = () => {
-            initAuth();
-            initAccordions();
-        };
+// Функции для работы с API
+	const API_BASE = '/api';  // через netlify.toml редирект
+
+	let currentToken = localStorage.getItem('token');
+
+	async function apiCall(endpoint, method = 'GET', data = null) {
+		const headers = {
+			'Content-Type': 'application/json',
+		};
+		if (currentToken) {
+			headers['Authorization'] = `Bearer ${currentToken}`;
+		}
+		const options = {
+			method,
+			headers,
+		};
+		if (data) options.body = JSON.stringify(data);
+		const res = await fetch(`${API_BASE}/${endpoint}`, options);
+		if (!res.ok) {
+			const error = await res.json();
+			throw new Error(error.error || 'API error');
+		}
+		return res.json();
+	}
+
+	async function register(login, password) {
+		const data = await apiCall('register', 'POST', { login, password });
+		if (data.token) {
+			currentToken = data.token;
+			localStorage.setItem('token', currentToken);
+			return data.user;
+		}
+		throw new Error('Registration failed');
+	}
+
+	async function login(login, password) {
+		const data = await apiCall('login', 'POST', { login, password });
+		if (data.token) {
+			currentToken = data.token;
+			localStorage.setItem('token', currentToken);
+			return data.user;
+		}
+		throw new Error('Login failed');
+	}
+
+	async function fetchUser() {
+		return apiCall('user');
+	}
+
+	async function orderPizza(item, price) {
+		return apiCall('order', 'POST', { item, price });
+	}
+
+	async function fetchHistory() {
+		return apiCall('history');
+	}
+
+	// Пример обновления интерфейса
+	async function updateWalletUI() {
+		if (!currentToken) return;
+		try {
+			const user = await fetchUser();
+			document.getElementById('balance').textContent = user.balance;
+			document.getElementById('regDate').textContent = user.regDate;
+			document.getElementById('accruedMinutes').textContent = user.totalAccrued;
+			// время до следующего начисления можно вычислить на клиенте
+			const now = new Date();
+			const tomorrow = new Date(now);
+			tomorrow.setDate(tomorrow.getDate() + 1);
+			tomorrow.setHours(0, 0, 0, 0);
+			const diffMs = tomorrow - now;
+			const hours = Math.floor(diffMs / (1000 * 60 * 60));
+			const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+			document.getElementById('nextAccrual').textContent = `${hours} ч ${minutes} мин`;
+		} catch(e) {
+			console.error(e);
+			logout();
+		}
+	}
+
+	async function handleOrder(name, price) {
+		try {
+			const result = await orderPizza(name, price);
+			alert(`✅ Заказ "${name}" принят! Остаток: ${result.newBalance} LM`);
+			updateWalletUI();
+		} catch(e) {
+			alert(`❌ ${e.message}`);
+		}
+	}
+
+	function logout() {
+		currentToken = null;
+		localStorage.removeItem('token');
+		document.getElementById('walletBlock').style.display = 'none';
+		document.getElementById('loginBlock').style.display = 'block';
+	}
+
+	// Обработчики входа / регистрации
+	document.getElementById('loginBtn').onclick = async () => {
+		const login = document.getElementById('loginInput').value;
+		const pass = document.getElementById('passwordInput').value;
+		try {
+			const user = await login(login, pass);
+			document.getElementById('loginBlock').style.display = 'none';
+			document.getElementById('walletBlock').style.display = 'block';
+			await updateWalletUI();
+		} catch(e) {
+			// Если пользователь не найден, спросим о регистрации
+			const confirmReg = confirm(`Пользователь "${login}" не найден. Зарегистрировать?`);
+			if (confirmReg) {
+				try {
+					const newUser = await register(login, pass);
+					alert(`Регистрация успешна! Начислено 5 минут.`);
+					document.getElementById('loginBlock').style.display = 'none';
+					document.getElementById('walletBlock').style.display = 'block';
+					await updateWalletUI();
+				} catch(regErr) {
+					alert(`Ошибка регистрации: ${regErr.message}`);
+				}
+			} else {
+				alert('Вход отменён');
+			}
+		}
+	};
+
+	document.getElementById('registerBtn').onclick = async () => {
+		const login = document.getElementById('loginInput').value;
+		const pass = document.getElementById('passwordInput').value;
+		try {
+			await register(login, pass);
+			alert('Регистрация прошла успешно! Выполняется вход...');
+			// После регистрации автоматически залогинимся
+			const user = await login(login, pass);
+			document.getElementById('loginBlock').style.display = 'none';
+			document.getElementById('walletBlock').style.display = 'block';
+			await updateWalletUI();
+		} catch(e) {
+			alert(`Ошибка: ${e.message}`);
+		}
+	};
+
+	document.getElementById('refreshBalanceBtn').onclick = updateWalletUI;
+	document.getElementById('historyBtn').onclick = async () => {
+		const data = await fetchHistory();
+		let msg = '📊 История:\n\nНачисления:\n';
+		data.accruals.forEach(a => msg += `${a.date}: +${a.minutes} (${a.reason})\n`);
+		msg += '\nЗаказы:\n';
+		data.orders.forEach(o => msg += `${o.date.slice(0,10)}: ${o.item} -${o.price} LM\n`);
+		alert(msg);
+	};
+	document.getElementById('logoutBtn').onclick = logout;
+
+	// При загрузке страницы
+	window.onload = async () => {
+		if (localStorage.getItem('token')) {
+			currentToken = localStorage.getItem('token');
+			try {
+				await fetchUser(); // проверяем валидность токена
+				document.getElementById('loginBlock').style.display = 'none';
+				document.getElementById('walletBlock').style.display = 'block';
+				await updateWalletUI();
+			} catch(e) {
+				logout();
+			}
+		} else {
+			document.getElementById('loginBlock').style.display = 'block';
+			document.getElementById('walletBlock').style.display = 'none';
+		}
+		// инициализация аккордеонов (как в предыдущих версиях)
+	};
     </script>
 </body>
 </html>
