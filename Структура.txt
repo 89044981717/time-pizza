@@ -1,0 +1,12 @@
+time-pizza/
+├── index.html
+├── style.css (опционально, можно встроить)
+├── script.js (фронтенд логика)
+├── netlify.toml
+└── netlify/
+    └── functions/
+        ├── register.js
+        ├── login.js
+        ├── user.js
+        ├── order.js
+        └── history.js

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Time Pizza — Заказ</title>
+    <style>
+        body {
+            font-family: Arial;
+            max-width: 400px;
+            margin: 40px auto;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+        }
+        .system-stats {
+            background: #2d2a4d;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .wallet {
+            background: #2a3b4d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .login-box {
+            background: #2a3b4d;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .login-box input {
+            display: block;
+            width: 90%;
+            margin: 10px auto;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            font-size: 1rem;
+        }
+        .login-box button {
+            margin: 5px;
+            padding: 8px 20px;
+            background: #4a6fa5;
+        }
+        .login-box button:hover {
+            background: #3a5a8c;
+        }
+        button {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        button:hover {
+            background: #ff5252;
+        }
+        .logout-btn {
+            background: #555;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .logout-btn:hover {
+            background: #777;
+        }
+        @media (prefers-color-scheme: light) {
+            body {
+                background-color: white;
+                color: #333;
+            }
+            .wallet, .login-box, .system-stats {
+                background: #f9f9f9;
+                border: 1px solid #ddd;
+            }
+        }
+
+        /* Стили аккордеона (меню и FAQ) */
+        .menu-accordion, .faq {
+            margin-top: 20px;
+        }
+        .menu-item, .faq-item {
+            background: #2d2d2d;
+            border-radius: 8px;
+            margin: 10px 0;
+            overflow: hidden;
+            border: 1px solid #444;
+        }
+        @media (prefers-color-scheme: light) {
+            .menu-item, .faq-item {
+                background: #f9f9f9;
+                border-color: #ddd;
+            }
+        }
+        .menu-header, .faq-question {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            background: rgba(0,0,0,0.2);
+        }
+        .menu-header:hover, .faq-question:hover {
+            background: rgba(255,107,107,0.15);
+        }
+        .menu-icon, .faq-icon {
+            transition: transform 0.2s;
+        }
+        .menu-item.active .menu-icon, .faq-item.active .faq-icon {
+            transform: rotate(180deg);
+        }
+        .menu-content, .faq-answer {
+            max-height: 0;
+            padding: 0 15px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.2s;
+            background: rgba(0,0,0,0.1);
+            border-top: 1px solid transparent;
+        }
+        .menu-item.active .menu-content, .faq-item.active .faq-answer {
+            max-height: 200px;
+            padding: 15px;
+            border-top-color: #555;
+        }
+        .faq-item.active .faq-answer {
+            max-height: 400px;
+        }
+        .test-warning {
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        .partner-cta {
+            background: #2d3b4d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #888;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="system-stats">
+        <h3>🌍 Система Time Pizza</h3>
+        <p>Зарегистрировано пользователей: <strong id="totalUsers">0</strong></p>
+    </div>
+
+    <!-- Блок кошелька (изначально скрыт) -->
+    <div id="walletBlock" class="wallet" style="display: none;">
+        <h3>🕐 Ваш кошелёк времени</h3>
+        <p>Баланс: <strong id="balance">0</strong> Life Minutes (LM)</p>
+        <p>Дата регистрации: <strong id="regDate"></strong></p>
+        <p>Минут начислено: <strong id="accruedMinutes">0</strong> (автоматически)</p>
+        <p>Следующее начисление через: <strong id="nextAccrual"></strong></p>
+        <button id="refreshBalanceBtn">🔄 Обновить баланс</button>
+        <button id="historyBtn" style="background: #4a6fa5; margin-top: 10px;">📊 История операций</button>
+        <button id="logoutBtn" class="logout-btn">🚪 Выйти</button>
+    </div>
+
+    <!-- Блок входа/регистрации -->
+    <div id="loginBlock" class="login-box">
+        <h3>🔐 Доступ к кошельку</h3>
+        <input type="text" id="loginInput" placeholder="Логин" autocomplete="off">
+        <input type="password" id="passwordInput" placeholder="Пароль">
+        <button id="loginBtn">Вход</button>
+        <button id="registerBtn">Регистрация</button>
+    </div>
+
+    <h2>🍕 Меню Time Pizza</h2>
+    <div class="menu-accordion">
+        <div class="menu-item">
+            <div class="menu-header">
+                <span>🍕 Маргарита</span>
+                <span class="menu-icon">▼</span>
+            </div>
+            <div class="menu-content">
+                <p>Классическая пицца с томатами и моцареллой</p>
+                <p><strong>Цена: 67 минут</strong></p>
+                <button onclick="orderPizza('Маргарита', 67)">Заказать за 67 LM</button>
+            </div>
+        </div>
+        <div class="menu-item">
+            <div class="menu-header">
+                <span>🍕 Пепперони</span>
+                <span class="menu-icon">▼</span>
+            </div>
+            <div class="menu-content">
+                <p>Острая пицца с колбаской пепперони</p>
+                <p><strong>Цена: 85 минут</strong></p>
+                <button onclick="orderPizza('Пепперони', 85)">Заказать за 85 LM</button>
+            </div>
+        </div>
+    </div>
+
+    <section class="partner-cta">
+        <h3>У вас есть бизнес?</h3>
+        <p>Узнайте, сколько стоит ваш товар во времени</p>
+        <a href="https://partner-time-pizza.netlify.app" style="display: inline-block; background: #4CAF50; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none;">
+            🧮 Калькулятор для партнёров
+        </a>
+    </section>
+
+    <div class="test-warning">
+        ⚠️ ТЕСТОВАЯ ВЕРСИЯ • Данные хранятся в вашем браузере (для каждого логина отдельно)
+    </div>
+
+    <div class="faq">
+        <h3>❓ Частые вопросы</h3>
+        <div class="faq-item">
+            <div class="faq-question">
+                <h4>Это шутка?</h4>
+                <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-answer"><p>Нет, это серьёзный социальный эксперимент. Мы исследуем, может ли время стать валютой.</p></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question">
+                <h4>Откуда берутся минуты?</h4>
+                <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-answer"><p>Каждый день система начисляет 1 минуту. При регистрации даётся бонус 5 минут.</p></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question">
+                <h4>Как проверить начисления?</h4>
+                <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-answer"><p>Войдите в кошелёк и нажмите «История операций». Начисления происходят автоматически раз в день.</p></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question">
+                <h4>Можно ли купить минуты?</h4>
+                <span class="faq-icon">▼</span>
+            </div>
+            <div class="faq-answer"><p>Нет. Минуты — это дар времени. Мы учимся ценить время, а не деньги.</p></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Time Pizza © 2026 | Экономика будущего</p>
+        <p>💡 Время — единственная честная валюта</p>
+    </footer>
+
+    <script>
+        // ---------- Работа с пользователями (localStorage) ----------
+        // Структура: users = { "логин": { password, balance, regDate, lastAccrual, orders, accrualHistory } }
+        
+        function getUsers() {
+            let users = localStorage.getItem('timepizza_users');
+            if (!users) {
+                // Начальная пустая база
+                return {};
+            }
+            return JSON.parse(users);
+        }
+        
+        function saveUsers(users) {
+            localStorage.setItem('timepizza_users', JSON.stringify(users));
+            updateTotalUsersCount();
+        }
+        
+        function updateTotalUsersCount() {
+            const users = getUsers();
+            const count = Object.keys(users).length;
+            document.getElementById('totalUsers').textContent = count;
+        }
+        
+        // Текущий залогиненный пользователь (храним логин)
+        let currentUser = null;
+        
+        function saveCurrentUser(login) {
+            if (login) {
+                localStorage.setItem('timepizza_current', login);
+            } else {
+                localStorage.removeItem('timepizza_current');
+            }
+            currentUser = login;
+        }
+        
+        function loadCurrentUserFromStorage() {
+            const saved = localStorage.getItem('timepizza_current');
+            if (saved && userExists(saved)) {
+                currentUser = saved;
+                return true;
+            }
+            return false;
+        }
+        
+        function userExists(login) {
+            const users = getUsers();
+            return !!users[login];
+        }
+        
+        function getUserData(login) {
+            const users = getUsers();
+            return users[login] ? { ...users[login] } : null;
+        }
+        
+        function setUserData(login, data) {
+            const users = getUsers();
+            users[login] = data;
+            saveUsers(users);
+        }
+        
+        // Автоматическое начисление минут (для конкретного пользователя)
+        function autoAccrueForUser(login, userData) {
+            const lastAccrual = userData.lastAccrual;
+            const regDate = userData.regDate;
+            if (!lastAccrual || !regDate) return userData;
+            
+            const today = new Date().toISOString().split('T')[0];
+            const lastDate = new Date(lastAccrual);
+            const currentDate = new Date(today);
+            const diffDays = Math.floor((currentDate - lastDate) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays > 0) {
+                userData.balance += diffDays;
+                userData.lastAccrual = today;
+                // Записываем в историю начислений
+                if (!userData.accrualHistory) userData.accrualHistory = [];
+                userData.accrualHistory.push({
+                    date: today,
+                    minutes: diffDays,
+                    reason: `Автоматическое начисление за ${diffDays} дн.`
+                });
+            }
+            return userData;
+        }
+        
+        // Обновить UI кошелька на основе currentUser
+        function updateWalletUI() {
+            if (!currentUser) return;
+            let userData = getUserData(currentUser);
+            if (!userData) return;
+            
+            // Сначала начисляем минуты
+            userData = autoAccrueForUser(currentUser, userData);
+            setUserData(currentUser, userData);
+            
+            // Отображаем
+            document.getElementById('balance').textContent = userData.balance;
+            document.getElementById('regDate').textContent = userData.regDate || '—';
+            
+            // Рассчитываем начисленные минуты с момента регистрации (просто для справки)
+            const reg = new Date(userData.regDate);
+            const now = new Date();
+            const daysSinceReg = Math.floor((now - reg) / (1000 * 60 * 60 * 24));
+            const totalAccrued = Math.max(0, daysSinceReg) + (userData.bonusGiven ? 5 : 0); // бонус при регистрации
+            document.getElementById('accruedMinutes').textContent = totalAccrued;
+            
+            // Время до следующего начисления
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            const nowMs = new Date();
+            const hoursUntil = Math.floor((tomorrow - nowMs) / (1000 * 60 * 60));
+            const minutesUntil = Math.floor((tomorrow - nowMs) / (1000 * 60)) % 60;
+            document.getElementById('nextAccrual').textContent = `${hoursUntil} ч ${minutesUntil} мин`;
+        }
+        
+        function refreshBalance() {
+            if (!currentUser) return;
+            updateWalletUI();
+            alert('✅ Баланс обновлён!');
+        }
+        
+        function orderPizza(name, price) {
+            if (!currentUser) {
+                alert('⚠️ Сначала войдите в кошелёк!');
+                return;
+            }
+            let userData = getUserData(currentUser);
+            if (!userData) return;
+            
+            // Перед заказом обновляем начисления
+            userData = autoAccrueForUser(currentUser, userData);
+            let balance = userData.balance;
+            
+            if (balance >= price) {
+                if (confirm(`Заказать "${name}" за ${price} минут?\nБаланс: ${balance} LM`)) {
+                    balance -= price;
+                    userData.balance = balance;
+                    if (!userData.orders) userData.orders = [];
+                    userData.orders.push({
+                        date: new Date().toISOString(),
+                        item: name,
+                        price: price,
+                        balanceAfter: balance
+                    });
+                    setUserData(currentUser, userData);
+                    updateWalletUI();
+                    alert(`✅ Заказ "${name}" принят!\nОстаток: ${balance} LM`);
+                }
+            } else {
+                alert(`😔 Не хватает ${price - balance} LM. Завтра появится +1 минута.`);
+            }
+        }
+        
+        function viewHistory() {
+            if (!currentUser) return;
+            const userData = getUserData(currentUser);
+            if (!userData) return;
+            
+            const history = userData.accrualHistory || [];
+            const orders = userData.orders || [];
+            let msg = '📊 История операций:\n\nНачисления:\n';
+            if (history.length === 0) msg += '  (нет)\n';
+            else history.forEach(h => msg += `  ${h.date}: +${h.minutes} LM (${h.reason})\n`);
+            
+            msg += '\nЗаказы:\n';
+            if (orders.length === 0) msg += '  (нет)\n';
+            else orders.forEach(o => msg += `  ${o.date.split('T')[0]}: ${o.item} -${o.price} LM\n`);
+            
+            alert(msg);
+        }
+        
+        function logout() {
+            saveCurrentUser(null);
+            currentUser = null;
+            document.getElementById('walletBlock').style.display = 'none';
+            document.getElementById('loginBlock').style.display = 'block';
+        }
+        
+        // Регистрация нового пользователя
+        function registerUser(login, password) {
+            login = login.trim();
+            if (!login || !password) {
+                alert('Введите логин и пароль');
+                return false;
+            }
+            const users = getUsers();
+            if (users[login]) {
+                alert('❌ Пользователь с таким логином уже существует. Попробуйте войти.');
+                return false;
+            }
+            const today = new Date().toISOString().split('T')[0];
+            const newUser = {
+                password: password,
+                balance: 5,          // бонус за регистрацию
+                regDate: today,
+                lastAccrual: today,
+                bonusGiven: true,
+                orders: [],
+                accrualHistory: [{ date: today, minutes: 5, reason: 'Бонус за регистрацию' }]
+            };
+            users[login] = newUser;
+            saveUsers(users);
+            alert(`✅ Регистрация успешна! Начислено 5 минут.\nТеперь вы можете войти.`);
+            return true;
+        }
+        
+        function loginUser(login, password) {
+            login = login.trim();
+            if (!login || !password) {
+                alert('Введите логин и пароль');
+                return false;
+            }
+            const users = getUsers();
+            const user = users[login];
+            if (!user || user.password !== password) {
+                // Неверная пара – спрашиваем, зарегистрироваться ли
+                const answer = confirm(`Пользователь "${login}" не найден или пароль неверен.\nЗарегистрировать нового пользователя с логином "${login}"?`);
+                if (answer) {
+                    registerUser(login, password);
+                }
+                return false;
+            }
+            // Успешный вход
+            saveCurrentUser(login);
+            currentUser = login;
+            document.getElementById('loginBlock').style.display = 'none';
+            document.getElementById('walletBlock').style.display = 'block';
+            updateWalletUI();
+            return true;
+        }
+        
+        // Инициализация интерфейса и обработчиков
+        function initAuth() {
+            updateTotalUsersCount();
+            // Проверяем, был ли уже залогинен пользователь (при обновлении страницы)
+            if (loadCurrentUserFromStorage()) {
+                document.getElementById('loginBlock').style.display = 'none';
+                document.getElementById('walletBlock').style.display = 'block';
+                updateWalletUI();
+            } else {
+                document.getElementById('loginBlock').style.display = 'block';
+                document.getElementById('walletBlock').style.display = 'none';
+            }
+            
+            // Кнопки логина/регистрации
+            document.getElementById('loginBtn').onclick = () => {
+                const login = document.getElementById('loginInput').value;
+                const pass = document.getElementById('passwordInput').value;
+                loginUser(login, pass);
+            };
+            document.getElementById('registerBtn').onclick = () => {
+                const login = document.getElementById('loginInput').value;
+                const pass = document.getElementById('passwordInput').value;
+                if (registerUser(login, pass)) {
+                    // после регистрации можно сразу войти
+                    loginUser(login, pass);
+                }
+            };
+            
+            // Кнопки внутри кошелька
+            document.getElementById('refreshBalanceBtn').onclick = refreshBalance;
+            document.getElementById('historyBtn').onclick = viewHistory;
+            document.getElementById('logoutBtn').onclick = logout;
+        }
+        
+        // Аккордеоны для меню и FAQ
+        function initAccordions() {
+            const menuItems = document.querySelectorAll('.menu-item');
+            menuItems.forEach(item => {
+                const header = item.querySelector('.menu-header');
+                header.addEventListener('click', () => {
+                    const isActive = item.classList.contains('active');
+                    menuItems.forEach(other => {
+                        if (other !== item && other.classList.contains('active')) other.classList.remove('active');
+                    });
+                    if (!isActive) item.classList.add('active');
+                    else item.classList.remove('active');
+                });
+            });
+            const faqItems = document.querySelectorAll('.faq-item');
+            faqItems.forEach(item => {
+                const question = item.querySelector('.faq-question');
+                question.addEventListener('click', () => {
+                    const isActive = item.classList.contains('active');
+                    faqItems.forEach(other => {
+                        if (other !== item && other.classList.contains('active')) other.classList.remove('active');
+                    });
+                    if (!isActive) item.classList.add('active');
+                    else item.classList.remove('active');
+                });
+            });
+        }
+        
+        window.onload = () => {
+            initAuth();
+            initAccordions();
+        };
+    </script>
+</body>
+</html>
